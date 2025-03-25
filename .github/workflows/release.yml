@@ -1,0 +1,104 @@
+name: Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+    contents: write
+
+jobs:
+  build:
+    name: Build and Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: '9.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build project
+        run: dotnet build --configuration Release --no-restore
+
+      - name: Run tests
+        run: dotnet test --no-restore --verbosity normal
+
+      # Build for different platforms - targeting the Driver project
+      - name: Publish Windows
+        run: dotnet publish Driver/Driver.csproj -c Release -r win-x64 --self-contained -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/win-x64
+      
+      - name: Publish Linux
+        run: dotnet publish Driver/Driver.csproj -c Release -r linux-x64 --self-contained -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/linux-x64
+      
+      - name: Publish macOS (Intel)
+        run: dotnet publish Driver/Driver.csproj -c Release -r osx-x64 --self-contained -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/osx-x64
+      
+      - name: Publish macOS (ARM)
+        run: dotnet publish Driver/Driver.csproj -c Release -r osx-arm64 --self-contained -p:IncludeNativeLibrariesForSelfExtract=true -o ./publish/osx-arm64
+
+      # Create zip archives
+      - name: Zip Windows build
+        run: cd ./publish/win-x64 && zip -r ../../CSharpDataStructures-windows.zip .
+      
+      - name: Zip Linux build
+        run: cd ./publish/linux-x64 && zip -r ../../CSharpDataStructures-linux.zip .
+      
+      - name: Zip macOS (Intel) build
+        run: cd ./publish/osx-x64 && zip -r ../../CSharpDataStructures-macos-intel.zip .
+        
+      - name: Zip macOS (ARM) build
+        run: cd ./publish/osx-arm64 && zip -r ../../CSharpDataStructures-macos-arm.zip .
+
+      # Extract version from tag
+      - name: Get version from tag
+        id: get_version
+        run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+        
+      # Create GitHub Release
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: C# Data Structures v${{ steps.get_version.outputs.VERSION }}
+          draft: false
+          prerelease: false
+          files: |
+            CSharpDataStructures-windows.zip
+            CSharpDataStructures-linux.zip
+            CSharpDataStructures-macos-intel.zip
+            CSharpDataStructures-macos-arm.zip
+          body: |
+            # C# Data Structures v${{ steps.get_version.outputs.VERSION }}
+            
+            ## Release Notes
+            
+            ### Data Structures
+            - Stack implementation (LIFO - Last In, First Out)
+            - Queue implementation (FIFO - First In, First Out)
+            - TaskItem class for data structure operations
+            - Driver application to demonstrate implementation
+            
+            ### Features
+            - Generic implementation supporting various data types
+            - Complete implementation of standard operations
+            - Memory-efficient design
+            - Comprehensive testing
+            
+            ### System Requirements
+            - .NET 9.0+ runtime
+            - 50MB disk space
+            - 2GB RAM recommended
+            
+            ### Resolved Issues
+            - List any resolved issues here in future releases
+            
+            ### Known Issues
+            - None at this time
